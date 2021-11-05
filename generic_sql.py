@@ -2,21 +2,24 @@ from visidata import *
 
 __all__ = [ 'openurl_mssql', 'openurl_oracle', 'openurl_mysql', 'SqlSchemasSheet' , 'SqlTablesSheet', 'SqlSheet']
 
-def openurl_oracle(url, filetype=None):
+@VisiData.api
+def openurl_oracle(vd, url, filetype=None):
     return SqlSchemasSheet(db = database(url.given))
 
-def openurl_mysql(url, filetype=None):
+@VisiData.api
+def openurl_mysql(vd, url, filetype=None):
     return SqlSchemasSheet(db = database(url.given))
 
-def openurl_mssql(url, filetype=None):
+@VisiData.api
+def openurl_mssql(vd, url, filetype=None):
     return SqlSchemasSheet(db = database(url.given))
 
 class SqlSchemasSheet(Sheet):
     rowtype = 'schemaInfo' #rowdef: tuple of schema name and count of tables owned by schema
     columns = [
-            Column('schema_name', type = str, getter = lambda col,row: row[0]),
-            Column('table_count', type = int, getter = lambda col,row: row[1])
-            ]
+        Column('schema_name', type = str, getter = lambda col,row: row[0]),
+        Column('table_count', type = int, getter = lambda col,row: row[1])
+    ]
 
     @asyncthread
     def reload(self):
@@ -26,9 +29,10 @@ class SqlSchemasSheet(Sheet):
                 r = row
             except Exception as e:
                 r = e
-            self.rows.append(r)
+            self.addRow(r)
 
-SqlSchemasSheet.addCommand(ENTER, 'dive-row', 'vd.push(SqlTablesSheet(schema=cursorRow[0], db=db))', 'open sql schema in current row')
+    def openRow(self, row):
+        return SqlTablesSheet(schema=row[0], db=self.db)
 
 
 class SqlTablesSheet(Sheet):
@@ -49,10 +53,10 @@ class SqlTablesSheet(Sheet):
                 r = table(sqlTable = itable, db = self.db)
             except Exception as e:
                 r = e
-            self.rows.append(r)
+            self.addRow(r)
 
-SqlTablesSheet.addCommand(ENTER, 'dive-row', 'vd.push(SqlSheet(table=cursorRow))', 'open sql table in current row')
-
+    def openRow(self, row):
+        return SqlSheet(table=row)
 
 class SqlSheet(Sheet):
     rowtype = 'databaseRow' #rowdef: tuple of database row values
@@ -60,7 +64,9 @@ class SqlSheet(Sheet):
     @asyncthread
     def reload(self):
         from sqlalchemy import select
-        self.columns = self.table.gen_sheet_cols()
+        self.columns = []
+        for col in self.table.gen_sheet_cols():
+            self.addColumn(col)
 
         self.rows = []
 
@@ -69,7 +75,7 @@ class SqlSheet(Sheet):
                 r = row
             except Exception as e:
                 r = e
-            self.rows.append(r)    
+            self.addRow(r)
 
 class table:
     def __init__(self, sqlTable, db):
